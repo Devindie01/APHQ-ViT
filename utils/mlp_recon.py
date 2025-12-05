@@ -178,6 +178,7 @@ class MLPReconstructor(QuantCalibrator):
         block,
         device,
         ub,
+        lb,
         batch_size: int = 32,
         iters: int = 20000,
         lr: float = 4e-5,
@@ -209,8 +210,20 @@ class MLPReconstructor(QuantCalibrator):
             w_optimizer.zero_grad()
             recon_out = block.mlp(cur_inp)
             fc2_inp = block.mlp.act(block.mlp.fc1(cur_inp))
-            fc2_quant_inp = torch.clamp(fc2_inp, 0, ub)
-            quant_out = block.mlp.fc2(fc2_quant_inp)
+            
+            # separate positive and negative
+            pos = torch.relu(fc2_inp)
+            neg = torch.relu(-fc2_inp) * -1
+
+            # clamp
+            pos = torch.clamp(pos, 0, ub)
+            neg = torch.clamp(neg, lb, 0)
+
+            # merge
+            fc2_clamped = pos + neg
+
+            # feed to fc2
+            quant_out = block.mlp.fc2(fc2_clamped)
             err = loss_func(recon_out, cur_out, cur_grad, quant_out)
             err.backward()
             w_optimizer.step()
