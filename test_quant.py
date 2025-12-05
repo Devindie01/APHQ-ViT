@@ -215,7 +215,7 @@ def main(args):
     if args.reconstruct_mlp:
         for name, module in model.named_modules():
             if name.split('.')[-1] == 'mlp':
-                module.act = nn.ReLU()
+                module.act = nn.LeakyReLU()
         if args.load_reconstruct_checkpoint is not None:
             logging.info(f"Restoring checkpoint from '{args.load_reconstruct_checkpoint}'")
             ckpt = torch.load(args.load_reconstruct_checkpoint)
