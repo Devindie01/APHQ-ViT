@@ -178,7 +178,6 @@ class MLPReconstructor(QuantCalibrator):
         block,
         device,
         ub,
-        lb,
         batch_size: int = 32,
         iters: int = 20000,
         lr: float = 4e-5,
@@ -210,14 +209,13 @@ class MLPReconstructor(QuantCalibrator):
             w_optimizer.zero_grad()
             recon_out = block.mlp(cur_inp)
             fc2_inp = block.mlp.act(block.mlp.fc1(cur_inp))
-            
+
             # separate positive and negative
             pos = torch.relu(fc2_inp)
             neg = torch.relu(-fc2_inp) * -1
 
             # clamp
-            pos = torch.clamp(pos, 0, ub)
-            neg = torch.clamp(neg, lb, 0)
+            pos = ub * torch.tanh(pos / ub)
 
             # merge
             fc2_clamped = pos + neg
@@ -243,15 +241,13 @@ class MLPReconstructor(QuantCalibrator):
                 block.mlp.raw_grad = full_block.mlp.raw_grad.to(device)
                 del full_block.mlp.raw_grad
             ub = positive_percentile(full_block.mlp.fc2.raw_input, pct=pct)
-            lb = negative_percentile(full_block.mlp.fc2.raw_input, pct=1 - pct)
             del (
                 full_block.mlp.fc1.raw_input,
                 full_block.mlp.fc2.raw_input,
                 full_block.mlp.raw_out,
             )
             logging.info("ub: {}".format(ub))
-            logging.info("lb: {}".format(lb))
-            self.reconstruct_single_block(name, block, device, ub=ub, lb=lb)
+            self.reconstruct_single_block(name, block, device, ub=ub)
             logging.info("finished reconstructing {}.".format(name))
 
 
